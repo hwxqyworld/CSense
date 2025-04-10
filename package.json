@@ -1,0 +1,42 @@
+{
+  "name": "csense",
+  "version": "0.1.3",
+  "description": "一个 CCW 安全审计工具",
+  "main": "dist/main.js",
+  "types": "./dist/index.d.ts",
+  "directories": {
+    "doc": "doc"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint ./src",
+    "lint:type": "tsc --noEmit -p ./tsconfig.json",
+    "fix": "eslint ./src --fix",
+    "build": "tsup src/index.js --config tsup.config.release.ts && node ./script/build.mjs",
+    "dev": "tsup src/index.js --config tsup.config.dev.ts",
+    "format": "prettier ./src *.md -c -w",
+    "lint:format": "prettier ./src *.md -c"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FurryR/CSense.git"
+  },
+  "author": "FurryR",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/FurryR/CSense/issues"
+  },
+  "pre-commit": [],
+  "homepage": "https://github.com/FurryR/CSense#readme",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.18.1",
+    "@typescript-eslint/parser": "^6.18.1",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "secure-vm": "^1.0.6"
+  }
+}
