@@ -1,6 +1,6 @@
 {
   "name": "csense",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "一个 CCW 安全审计工具",
   "main": "dist/main.js",
   "types": "./dist/index.d.ts",

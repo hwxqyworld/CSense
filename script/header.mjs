@@ -4,12 +4,12 @@ export default `// ==UserScript==
 // @name         CSense
 // @namespace    CSense
 // @version      ${PackageJSON.version}
-// @license      CC0-1.0
+// @license      AGPL-3.0
 // @downloadURL  https://axolotltfgs.github.io/CSense/csense.js
 // @updateURL    https://axolotltfgs.github.io/CSense/csense.js
 // @description  一个 CCW 安全审计工具
 // @author       axolotl
-// @match        https://www.ccw.site/*
+// @match        https://www.ccw.site/gandi*
 // @icon         https://m.ccw.site/community/images/logo-ccw.png
 // @grant        none
 // @run-at       document-start
