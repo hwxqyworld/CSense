@@ -154,7 +154,7 @@ export class HomeScene {
           return async function (extensionURL, shouldReplace = false) {
             if (
               extensionURL.startsWith(
-                'https://m.ccw.site/user_projects_assets/'
+                'https://'
               )
             ) {
               let code = await fetch(extensionURL).then(res => res.text())
