@@ -536,6 +536,14 @@ export class HomeScene {
               break
             }
           }
+          const extname = extensionObject.getInfo().id;
+          if(confirm(`作品尝试注册扩展 ${extname}，是否自动生成空扩展？`)) {
+            const info = extensionObject.getInfo();
+            for(const block of info.blocks) {
+              const opc = block.opcode;
+              extensionObject[opc] = _=>{};
+            }
+          }
           _compilerRegisterExtension.call(vm.runtime, name, extensionObject)
         }
       })
