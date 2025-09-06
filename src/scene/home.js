@@ -296,6 +296,7 @@ export class HomeScene {
                     const template = `
 (function (Scratch, info) {
   'use strict';
+  // 代码并不直接可用，请根据扩展实际功能进行修改。
   class Extension {
     getInfo() {
       return info;
@@ -312,7 +313,7 @@ export class HomeScene {
       }
       try {
         const code = res.info.blocks.map(
-          v => `${v.opcode} () {${getDefaultDummy(v.blockType)}}`
+          v => `${v.opcode ?? v.func} () {${getDefaultDummy(v.blockType)}}`
         )
         return code.length ? '\n    ' + code.join('\n    ') : ''
       } catch {
@@ -321,7 +322,7 @@ export class HomeScene {
     })()}
   }
   Scratch.extensions.register(new Extension());
-})(${JSON.stringify(res.info, null, 2)});
+})(Scratch, ${JSON.stringify(res.info, null, 2)});
 `
                     monacoEditor.setValue(template.trim())
                   })

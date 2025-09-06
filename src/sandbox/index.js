@@ -666,5 +666,3 @@ export async function getExtensionInfo(code, timeout = 10) {
     return res
   })
 }
-
-window.getExtensionInfo = getExtensionInfo // for debug use
