@@ -5,7 +5,8 @@ export default defineConfig({
   target: ['esnext'],
   outDir: 'dist',
   loader: {
-    '.svg': 'dataurl'
+    '.svg': 'dataurl',
+    '.pem': 'text'
   },
   platform: 'browser',
   format: 'iife',
