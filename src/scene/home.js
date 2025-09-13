@@ -10,7 +10,7 @@ import { CCWDataScene } from './ccwdata'
 import { createScrollable } from 'src/util/window'
 import LOGO_IMG from 'src/asset/logo.svg'
 import { version as VERSION } from '../../package.json'
-import { vm as SecureVM } from 'secure-vm'
+import { getExtensionInfo } from 'src/sandbox'
 import { Monaco } from 'src/base/monaco'
 
 export class HomeScene {
@@ -149,15 +149,29 @@ export class HomeScene {
             }
           }
         )
+        const maskURLs = {}
+        patch(
+          vm.extensionManager,
+          'addCustomExtensionInfo',
+          addCustomExtensionInfo => {
+            return function (ext, url) {
+              if (maskURLs[url]) {
+                url = maskURLs[url]
+                delete maskURLs[url]
+              }
+              return addCustomExtensionInfo.call(this, ext, url)
+            }
+          }
+        )
         patch(vm.extensionManager, 'loadExtensionURL', loadExtensionURL => {
           // https://m.ccw.site/user_projects_assets/b45605a0ce457806eb9a6d4a675058e6.js
           return async function (extensionURL, shouldReplace = false) {
             if (
-              extensionURL.startsWith(
-                'https://'
-              )
+              extensionURL.startsWith('http:') ||
+              extensionURL.startsWith('https:')
             ) {
               let code = await fetch(extensionURL).then(res => res.text())
+              const extensionInfo = getExtensionInfo(code)
               const monaco = await Monaco
               // 可能是危险的用户脚本，弹出警告并允许用户修改脚本
               return new Promise(resolve => {
@@ -255,10 +269,65 @@ export class HomeScene {
                       return createElement.call(this, tagName)
                     }
                   })
+                  maskURLs[url] = extensionURL
                   resolve(loadExtensionURL.call(this, url, shouldReplace))
                 })
 
                 foreground.appendChild(continueButton)
+
+                extensionInfo.then(res => {
+                  if (res.result !== 'success') {
+                    console.error('Failed to parse extension info:', res.error)
+                  }
+                  const useButton = document.createElement('button')
+                  useButton.textContent = '使用 no-op 扩展模板'
+                  useButton.style.marginTop = '20px'
+                  useButton.style.marginLeft = '10px'
+                  useButton.style.padding = '10px 20px'
+                  useButton.style.fontSize = '16px'
+                  useButton.style.cursor =
+                    res.result === 'success' ? 'pointer' : 'not-allowed'
+                  useButton.disabled = res?.result !== 'success'
+                  useButton.title =
+                    res?.result === 'success'
+                      ? '已解析到此扩展的元信息。点击使用一个空实现替换此扩展。'
+                      : '无法解析到此扩展的元信息。现在无法使用此功能。'
+                  useButton.addEventListener('click', () => {
+                    const template = `
+(function (Scratch, info) {
+  'use strict';
+  // 代码并不直接可用，请根据扩展实际功能进行修改。
+  class Extension {
+    getInfo() {
+      return info;
+    }${(() => {
+      const getDefaultDummy = blockType => {
+        switch (blockType) {
+          case 'reporter':
+            return ' return 0; '
+          case 'Boolean':
+            return ' return false; '
+          default:
+            return ''
+        }
+      }
+      try {
+        const code = res.info.blocks.map(
+          v => `${v.opcode ?? v.func} () {${getDefaultDummy(v.blockType)}}`
+        )
+        return code.length ? '\n    ' + code.join('\n    ') : ''
+      } catch {
+        return ''
+      }
+    })()}
+  }
+  Scratch.extensions.register(new Extension());
+})(Scratch, ${JSON.stringify(res.info, null, 2)});
+`
+                    monacoEditor.setValue(template.trim())
+                  })
+                  foreground.appendChild(useButton)
+                })
                 overlay.appendChild(foreground)
 
                 document.body.appendChild(overlay)
@@ -340,7 +409,7 @@ export class HomeScene {
               break
             }
             case 'CCWData': {
-              const context = SecureVM({ Scratch: window.Scratch })
+              // const context = SecureVM({ Scratch: window.Scratch })
               patchUUID(extensionObject)
               this.featureList.set('🌩️ 云数据', () => {
                 this.manager.open(
@@ -348,133 +417,134 @@ export class HomeScene {
                 )
               })
               extensionObject.sendPlayEventCode = () => {}
-              patch(extensionObject, 'getValueInJSON', getValueInJSON => {
-                return function getValueInJSON(args) {
-                  var key = Scratch.Cast.toString(args.KEY),
-                    json = Scratch.Cast.toString(args.JSON),
-                    jsonObj
-                  try {
-                    jsonObj = JSON.parse(json)
-                  } catch (e) {
-                    return 'error: '.concat(e.message)
-                  }
-                  if (/[()=]/gm.test(key))
-                    return 'error: invalid key '.concat(
-                      key,
-                      ', cannot contain ()='
-                    )
-                  var key2 = 'jsonObj['.concat(key, ']'),
-                    rtObj
-                  Array.isArray(jsonObj)
-                    ? (key = key.startsWith('[')
-                        ? 'jsonObj'.concat(key)
-                        : 'jsonObj['.concat(key, ']'))
-                    : /\s/gm.test(key)
-                      ? (console.warn(
-                          '[CCW Data] warning: invalid key '.concat(
-                            key,
-                            ', space and dot cannot be used together'
-                          )
-                        ),
-                        (key = 'jsonObj["'.concat(key, '"]')))
-                      : (key = 'jsonObj.'.concat(key))
-                  try {
-                    rtObj = context
-                      .Function('key', 'json', 'jsonObj', 'key2', 'args', key)
-                      .call(
-                        this,
-                        key,
-                        json,
-                        jsonObj,
-                        key2,
-                        `return eval(${JSON.stringify(args)})`
-                      )
-                  } catch (e) {
-                    try {
-                      rtObj = context
-                        .Function('key', 'json', 'jsonObj', 'key2', 'args', key)
-                        .call(
-                          this,
-                          key,
-                          json,
-                          jsonObj,
-                          key2,
-                          `return eval(${JSON.stringify(args)})`
-                        )
-                    } catch (e) {
-                      return 'error: key or expression invalid'
-                    }
-                  }
-                  return 'object' === typeof rtObj
-                    ? JSON.stringify(rtObj)
-                    : rtObj
-                }
-              })
-              patch(extensionObject, 'setValueInJSON', setValueInJSON => {
-                return function setValueInJSON(args) {
-                  var key = Scratch.Cast.toString(args.KEY),
-                    value = Scratch.Cast.toString(args.VALUE),
-                    json = Scratch.Cast.toString(args.JSON),
-                    jsonObj
-                  try {
-                    jsonObj = JSON.parse(json)
-                  } catch (e) {
-                    return 'error: '.concat(e.message)
-                  }
-                  if (/[()=]/gm.test(key))
-                    return 'error: invalid key '.concat(
-                      key,
-                      ', cannot contain ()='
-                    )
-                  var valueObj = value
-                  if (
-                    /^[\[].*?[\]]$/gm.test(value) ||
-                    /^[\{].*?[\}]$/gm.test(value)
-                  )
-                    try {
-                      valueObj = JSON.parse(value)
-                    } catch (e) {}
-                  'string' == typeof valueObj &&
-                    /^-?\d*\.?\d*$/gm.test(valueObj) &&
-                    (valueObj = Number(valueObj))
-                  try {
-                    Array.isArray(jsonObj)
-                      ? (jsonObj[key] = valueObj)
-                      : /[\.\[\]]/gm.test(key)
-                        ? (valueObj instanceof Object
-                            ? ((valueObj = JSON.stringify(valueObj)),
-                              (valueObj = "JSON.parse('".concat(
-                                valueObj,
-                                "')"
-                              )))
-                            : 'string' == typeof valueObj &&
-                              (valueObj = "'".concat(valueObj, "'")),
-                          context
-                            .Function(
-                              'key',
-                              'value',
-                              'json',
-                              'jsonObj',
-                              'valueObj',
-                              'args',
-                              'jsonObj.'.concat(key, '=').concat(valueObj)
-                            )
-                            .call(
-                              this,
-                              key,
-                              value,
-                              json,
-                              jsonObj,
-                              valueObj,
-                              args
-                            ))
-                        : (jsonObj[key] = valueObj)
-                  } catch (e) {
-                    return 'error: key or expression invalid'
-                  }
-                  return JSON.stringify(jsonObj)
-                }
-              })
+              // FIXME: SecureVM is slow
+              // patch(extensionObject, 'getValueInJSON', getValueInJSON => {
+              //   return function getValueInJSON(args) {
+              //     var key = Scratch.Cast.toString(args.KEY),
+              //       json = Scratch.Cast.toString(args.JSON),
+              //       jsonObj
+              //     try {
+              //       jsonObj = JSON.parse(json)
+              //     } catch (e) {
+              //       return 'error: '.concat(e.message)
+              //     }
+              //     if (/[()=]/gm.test(key))
+              //       return 'error: invalid key '.concat(
+              //         key,
+              //         ', cannot contain ()='
+              //       )
+              //     var key2 = 'jsonObj['.concat(key, ']'),
+              //       rtObj
+              //     Array.isArray(jsonObj)
+              //       ? (key = key.startsWith('[')
+              //           ? 'jsonObj'.concat(key)
+              //           : 'jsonObj['.concat(key, ']'))
+              //       : /\s/gm.test(key)
+              //         ? (console.warn(
+              //             '[CCW Data] warning: invalid key '.concat(
+              //               key,
+              //               ', space and dot cannot be used together'
+              //             )
+              //           ),
+              //           (key = 'jsonObj["'.concat(key, '"]')))
+              //         : (key = 'jsonObj.'.concat(key))
+              //     try {
+              //       rtObj = context
+              //         .Function('key', 'json', 'jsonObj', 'key2', 'args', key)
+              //         .call(
+              //           this,
+              //           key,
+              //           json,
+              //           jsonObj,
+              //           key2,
+              //           `return eval(${JSON.stringify(args)})`
+              //         )
+              //     } catch (e) {
+              //       try {
+              //         rtObj = context
+              //           .Function('key', 'json', 'jsonObj', 'key2', 'args', key)
+              //           .call(
+              //             this,
+              //             key,
+              //             json,
+              //             jsonObj,
+              //             key2,
+              //             `return eval(${JSON.stringify(args)})`
+              //           )
+              //       } catch (e) {
+              //         return 'error: key or expression invalid'
+              //       }
+              //     }
+              //     return 'object' === typeof rtObj
+              //       ? JSON.stringify(rtObj)
+              //       : rtObj
+              //   }
+              // })
+              // patch(extensionObject, 'setValueInJSON', setValueInJSON => {
+              //   return function setValueInJSON(args) {
+              //     var key = Scratch.Cast.toString(args.KEY),
+              //       value = Scratch.Cast.toString(args.VALUE),
+              //       json = Scratch.Cast.toString(args.JSON),
+              //       jsonObj
+              //     try {
+              //       jsonObj = JSON.parse(json)
+              //     } catch (e) {
+              //       return 'error: '.concat(e.message)
+              //     }
+              //     if (/[()=]/gm.test(key))
+              //       return 'error: invalid key '.concat(
+              //         key,
+              //         ', cannot contain ()='
+              //       )
+              //     var valueObj = value
+              //     if (
+              //       /^[\[].*?[\]]$/gm.test(value) ||
+              //       /^[\{].*?[\}]$/gm.test(value)
+              //     )
+              //       try {
+              //         valueObj = JSON.parse(value)
+              //       } catch (e) {}
+              //     'string' == typeof valueObj &&
+              //       /^-?\d*\.?\d*$/gm.test(valueObj) &&
+              //       (valueObj = Number(valueObj))
+              //     try {
+              //       Array.isArray(jsonObj)
+              //         ? (jsonObj[key] = valueObj)
+              //         : /[\.\[\]]/gm.test(key)
+              //           ? (valueObj instanceof Object
+              //               ? ((valueObj = JSON.stringify(valueObj)),
+              //                 (valueObj = "JSON.parse('".concat(
+              //                   valueObj,
+              //                   "')"
+              //                 )))
+              //               : 'string' == typeof valueObj &&
+              //                 (valueObj = "'".concat(valueObj, "'")),
+              //             context
+              //               .Function(
+              //                 'key',
+              //                 'value',
+              //                 'json',
+              //                 'jsonObj',
+              //                 'valueObj',
+              //                 'args',
+              //                 'jsonObj.'.concat(key, '=').concat(valueObj)
+              //               )
+              //               .call(
+              //                 this,
+              //                 key,
+              //                 value,
+              //                 json,
+              //                 jsonObj,
+              //                 valueObj,
+              //                 args
+              //               ))
+              //           : (jsonObj[key] = valueObj)
+              //     } catch (e) {
+              //       return 'error: key or expression invalid'
+              //     }
+              //     return JSON.stringify(jsonObj)
+              //   }
+              // })
               patch(
                 extensionObject,
                 '_getValueFromProject',
