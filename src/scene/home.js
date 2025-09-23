@@ -13,6 +13,7 @@ import { version as VERSION } from '../../package.json'
 import { getExtensionInfo } from 'src/sandbox'
 import { Monaco } from 'src/base/monaco'
 import { ExtensionOverlay } from 'src/overlay/extension'
+import { vm as SecureVM } from 'secure-vm'
 import withResolvers from 'src/util/withResolvers'
 
 export class HomeScene {
@@ -130,13 +131,11 @@ export class HomeScene {
                   resolver
                 )
               )
-              debugger
               input = await (
                 await resolver.promise
               ).generateAsync({
                 type: 'arraybuffer'
               })
-              debugger
             }
             return loadProject.call(vm, input)
           }
@@ -282,6 +281,7 @@ export class HomeScene {
               })
               extensionObject.sendPlayEventCode = () => {}
               // FIXME: SecureVM is slow
+              // const context = SecureVM()
               // patch(extensionObject, 'getValueInJSON', getValueInJSON => {
               //   return function getValueInJSON(args) {
               //     var key = Scratch.Cast.toString(args.KEY),

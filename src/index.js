@@ -8,6 +8,11 @@ import { version as VERSION } from '../package.json'
 // import { getCookie, setCookie } from './util/cookie'
 // import { verify } from './util/encryption'
 ;(() => {
+  function asNativeFunc(fn) {
+    const toString = (fn.toString = () => 'function () { [native code] }')
+    fn.toString.toString = toString
+    return fn
+  }
   // Disabled for development reasons
   //   const userId = getCookie('cookie-user-id')
   //   if (!userId) {
@@ -47,4 +52,20 @@ import { version as VERSION } from '../package.json'
   globalState.button = win.button
   manager._updateTitle()
   globalThis.manager = manager
+  // Anti-detection designed for "some" tricky projects
+  const querySelectorAll = Document.prototype.querySelectorAll
+  Document.prototype.querySelectorAll = asNativeFunc(function (selectors) {
+    if (this !== document) {
+      return querySelectorAll.call(this, selectors)
+    }
+    const elements = Array.from(querySelectorAll.call(this, selectors))
+    const result = elements.filter(
+      el => !(el === win.button || el === win.window)
+    )
+    return Object.assign(result, {
+      item(nth) {
+        return result[nth]
+      }
+    })
+  })
 })()

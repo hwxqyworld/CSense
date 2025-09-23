@@ -193,6 +193,7 @@ export function createWindow(element, onClose) {
 
   return {
     button: reopenButton,
+    window: floatingDiv,
     setTitle: v => {
       title.textContent = v
     }
