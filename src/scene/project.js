@@ -36,6 +36,10 @@ export class ProjectScene {
     downloadButton.style.color = 'white'
     downloadButton.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.2)' // Modern shadow
     downloadButton.addEventListener('click', async () => {
+      downloadButton.disabled = true
+      let zip = null
+      let projectJson = null
+
       if (
         typeof this.input === 'string' ||
         (typeof this.input === 'object' &&
@@ -43,32 +47,71 @@ export class ProjectScene {
           !(this.input instanceof Uint8Array))
       ) {
         // project.json only, convert to .zip (.sb3)
-        const zip = new this.JSZip()
+        zip = new this.JSZip()
         zip.file('project.json', this.input)
-        const content = await zip.generateAsync({ type: 'arraybuffer' })
-        const url = URL.createObjectURL(
-          new Blob([content], { type: 'application/zip' })
-        )
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'project.sb3'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+        projectJson = JSON.parse(this.input)
       } else {
-        // .sb3 file
-        const url = URL.createObjectURL(
-          new Blob([this.input], { type: 'application/zip' })
-        )
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'project.sb3'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+        zip = await this.JSZip.loadAsync(this.input)
+        const projectFile = zip.file('project.json')
+        projectJson = JSON.parse(await projectFile.async('string'))
       }
+      // First fetch all gandi assets
+      const filesToFetch = []
+      if (projectJson.gandi?.assets) {
+        projectJson.gandi.assets.forEach(asset => {
+          filesToFetch.push([
+            `${asset.md5ext}`,
+            `https://m.ccw.site/user_projects_assets/${encodeURIComponent(asset.md5ext)}`
+          ])
+        })
+      }
+      // Then fetch all costume/sound assets
+      for (const target of projectJson.targets) {
+        target.sounds.forEach(sound => {
+          filesToFetch.push([
+            `${sound.md5ext}`,
+            `https://m.ccw.site/user_projects_assets/${encodeURIComponent(sound.md5ext)}`
+          ])
+        })
+        target.costumes.forEach(costume => {
+          filesToFetch.push([
+            `${costume.md5ext}`,
+            `https://m.ccw.site/user_projects_assets/${encodeURIComponent(costume.md5ext)}`
+          ])
+        })
+      }
+      // Fetch all files in 32 threads
+      const concurrency = 32
+      let index = 0
+      await Promise.all(
+        new Array(concurrency).fill(0).map(async () => {
+          while (index < filesToFetch.length) {
+            const [md5ext, url] = filesToFetch[index++]
+            if (zip.file(md5ext)) continue // Already fetched
+            try {
+              const res = await fetch(url)
+              if (!res.ok)
+                throw new Error(`Failed to fetch ${url}: ${res.statusText}`)
+              const blob = await res.blob()
+              zip.file(md5ext, blob)
+            } catch (e) {
+              console.error(e)
+            }
+          }
+        })
+      )
+      const content = await zip.generateAsync({ type: 'arraybuffer' })
+      const url = URL.createObjectURL(
+        new Blob([content], { type: 'application/zip' })
+      )
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'project.sb3'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      downloadButton.disabled = false
     })
 
     searchInput.addEventListener('input', () => {
