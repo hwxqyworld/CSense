@@ -14,5 +14,6 @@ export default {
     /** @type {RegExp[]} */
     broadcastBlackList: []
   },
+  button: null,
   isIdentified: false
 }

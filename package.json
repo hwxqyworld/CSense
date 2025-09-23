@@ -19,20 +19,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/FurryR/CSense.git"
+    "url": "git+https://github.com/csense-rev/csense-rev.git"
   },
   "author": "FurryR",
   "license": "AGPL-3.0",
   "bugs": {
-    "url": "https://github.com/FurryR/CSense/issues"
+    "url": "https://github.com/csense-rev/csense-rev/issues"
   },
   "pre-commit": [],
-  "homepage": "https://github.com/FurryR/CSense#readme",
+  "homepage": "https://github.com/csense-rev/csense-rev#readme",
   "devDependencies": {
     "@types/node-forge": "^1.3.14",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
     "@typescript-eslint/parser": "^6.18.1",
     "eslint": "^8.56.0",
+    "jszip": "^3.10.1",
     "prettier": "^3.2.1",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3"

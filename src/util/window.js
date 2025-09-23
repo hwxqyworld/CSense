@@ -1,6 +1,7 @@
 export const windowOpen = window.open
 
 import LOGO_IMG from 'src/asset/logo.svg'
+import { CSENSE_WINDOW_BASE_ZINDEX } from './constant'
 
 /**
  * 创建浮动窗口
@@ -8,79 +9,73 @@ import LOGO_IMG from 'src/asset/logo.svg'
  * @param {()=>boolean} onClose
  */
 export function createWindow(element, onClose) {
+  const reopenButton = document.createElement('button')
+  reopenButton.style.position = 'fixed'
+  reopenButton.style.bottom = '20px'
+  reopenButton.style.right = '20px'
+  reopenButton.style.zIndex = String(CSENSE_WINDOW_BASE_ZINDEX)
+  reopenButton.style.padding = '10px'
+  reopenButton.style.color = 'white'
+  reopenButton.style.border = 'none'
+  reopenButton.style.cursor = 'pointer'
+  reopenButton.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.2)' // Modern shadow
+  reopenButton.style.width = '50px'
+  reopenButton.style.height = '50px'
+  reopenButton.style.borderRadius = '50%'
+  reopenButton.style.background = 'linear-gradient(45deg, #005EAC, #404040)'
+  reopenButton.title = 'CCW 脆弱性的根本证明。'
+
+  const image = document.createElement('img')
+  image.src = LOGO_IMG
+  image.alt = 'CSense'
+  reopenButton.appendChild(image)
+
+  let isDraggingButton = false
+  let hasPositionChanged = false
+  let buttonOffsetX, buttonOffsetY
+
+  reopenButton.addEventListener('mousedown', e => {
+    isDraggingButton = true
+    hasPositionChanged = false
+    buttonOffsetX = e.clientX - reopenButton.getBoundingClientRect().left
+    buttonOffsetY = e.clientY - reopenButton.getBoundingClientRect().top
+    e.preventDefault()
+  })
+
+  document.addEventListener('mousemove', e => {
+    if (isDraggingButton) {
+      delete reopenButton.style.bottom
+      delete reopenButton.style.right
+      reopenButton.style.left = e.clientX - buttonOffsetX + 'px'
+      reopenButton.style.top = e.clientY - buttonOffsetY + 'px'
+      hasPositionChanged = true
+      e.preventDefault()
+    }
+  })
+
+  document.addEventListener('mouseup', e => {
+    if (isDraggingButton) {
+      if (hasPositionChanged) {
+        isDraggingButton = false
+      } else {
+        reopenButton.style.display = 'none'
+        floatingDiv.style.display = 'block'
+        floatingDiv.animate([{ opacity: '0' }, { opacity: '1' }], {
+          duration: 300,
+          easing: 'ease-in-out'
+        })
+      }
+      e.preventDefault()
+    }
+  })
+
+  document.documentElement.appendChild(reopenButton)
   /**
    * 关闭浮动窗口并创建重新打开按钮
    */
   function closeFloatingDiv() {
     floatingDiv.style.display = 'none'
-    createReopenButton()
-  }
-
-  /**
-   * 创建重新打开按钮
-   */
-  function createReopenButton() {
-    const reopenButton = document.createElement('button')
-    reopenButton.style.position = 'fixed'
-    reopenButton.style.bottom = '20px'
-    reopenButton.style.right = '20px'
-    reopenButton.style.zIndex = '9999'
-    reopenButton.style.padding = '10px'
-    reopenButton.style.color = 'white'
-    reopenButton.style.border = 'none'
-    reopenButton.style.cursor = 'pointer'
-    reopenButton.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.2)' // Modern shadow
-    reopenButton.style.width = '50px'
-    reopenButton.style.height = '50px'
-    reopenButton.style.borderRadius = '50%'
-    reopenButton.style.background = 'linear-gradient(45deg, #005EAC, #404040)'
-    reopenButton.title = 'CCW 脆弱性的根本证明。'
-
-    const image = document.createElement('img')
-    image.src = LOGO_IMG
-    image.alt = 'CSense'
-    reopenButton.appendChild(image)
-
-    let isDraggingButton = false
-    let hasPositionChanged = false
-    let buttonOffsetX, buttonOffsetY
-
-    reopenButton.addEventListener('mousedown', e => {
-      isDraggingButton = true
-      hasPositionChanged = false
-      buttonOffsetX = e.clientX - reopenButton.getBoundingClientRect().left
-      buttonOffsetY = e.clientY - reopenButton.getBoundingClientRect().top
-      e.preventDefault()
-    })
-
-    document.addEventListener('mousemove', e => {
-      if (isDraggingButton) {
-        delete reopenButton.style.bottom
-        delete reopenButton.style.right
-        reopenButton.style.left = e.clientX - buttonOffsetX + 'px'
-        reopenButton.style.top = e.clientY - buttonOffsetY + 'px'
-        hasPositionChanged = true
-        e.preventDefault()
-      }
-    })
-
-    document.addEventListener('mouseup', e => {
-      if (isDraggingButton) {
-        if (hasPositionChanged) {
-          isDraggingButton = false
-        } else {
-          document.documentElement.removeChild(reopenButton)
-          floatingDiv.style.display = 'block'
-          floatingDiv.animate([{ opacity: '0' }, { opacity: '1' }], {
-            duration: 300,
-            easing: 'ease-in-out'
-          })
-        }
-        e.preventDefault()
-      }
-    })
-
-    document.documentElement.appendChild(reopenButton)
+    reopenButton.style.display = 'block'
   }
 
   const floatingDiv = document.createElement('div')
@@ -196,8 +191,11 @@ export function createWindow(element, onClose) {
 
   document.documentElement.appendChild(floatingDiv)
 
-  return v => {
-    title.textContent = v
+  return {
+    button: reopenButton,
+    setTitle: v => {
+      title.textContent = v
+    }
   }
 }
 
