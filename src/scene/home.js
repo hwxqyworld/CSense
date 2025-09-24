@@ -12,6 +12,9 @@ import LOGO_IMG from 'src/asset/logo.svg'
 import { version as VERSION } from '../../package.json'
 import { getExtensionInfo } from 'src/sandbox'
 import { Monaco } from 'src/base/monaco'
+import { ExtensionOverlay } from 'src/overlay/extension'
+import { vm as SecureVM } from 'secure-vm'
+import withResolvers from 'src/util/withResolvers'
 
 export class HomeScene {
   static title = '主页'
@@ -24,6 +27,10 @@ export class HomeScene {
       return order.indexOf(a[0]) - order.indexOf(b[0])
     })
   }
+  /**
+   *
+   * @param {import('../base/scene').SceneManager} manager
+   */
   constructor(manager) {
     globalState.userInfo = null
     const selfCallback = e => {
@@ -84,11 +91,54 @@ export class HomeScene {
       this.isProfilePage = false
       vm.then(vm => {
         globalState.vm = vm
-        vm.runtime.on('PROJECT_LOADED', () => {
-          this.featureList.set('📝 作品数据', () =>
-            this.manager.open(new ProjectScene(this.manager))
-          )
-          this.manager.requestUpdate()
+        patch(vm, 'loadProject', loadProject => {
+          return async input => {
+            /** @type {import('jszip')} */
+            const JSZip = vm.exports.JSZip
+            this.featureList.set('📝 作品数据', () =>
+              this.manager.open(new ProjectScene(this.manager, JSZip, input))
+            )
+            this.manager.requestUpdate()
+            let projectZip = null
+            let projectJson = null
+            if (
+              typeof input === 'string' ||
+              (typeof input === 'object' &&
+                !(input instanceof ArrayBuffer) &&
+                !(input instanceof Uint8Array))
+            ) {
+              projectZip = new JSZip()
+              projectZip.file('project.json', input)
+              projectJson =
+                typeof input === 'string' ? JSON.parse(input) : input
+            } else {
+              projectZip = await JSZip.loadAsync(input)
+              const file = projectZip.file('project.json')
+              if (file) {
+                const content = await file.async('string')
+                projectJson = JSON.parse(content)
+              }
+            }
+            if (projectJson.extensions && projectJson.extensions.length > 0) {
+              // Detected extensions.
+              /** @type {PromiseWithResolvers<import('jszip')>} */
+              const resolver = withResolvers()
+              this.manager.addOverlay(
+                new ExtensionOverlay(
+                  this.manager,
+                  projectZip,
+                  projectJson,
+                  resolver
+                )
+              )
+              input = await (
+                await resolver.promise
+              ).generateAsync({
+                type: 'arraybuffer'
+              })
+            }
+            return loadProject.call(vm, input)
+          }
         })
         // Account Hack
         const patchCCWAPI = ccwAPI => {
@@ -149,192 +199,6 @@ export class HomeScene {
             }
           }
         )
-        const maskURLs = {}
-        patch(
-          vm.extensionManager,
-          'addCustomExtensionInfo',
-          addCustomExtensionInfo => {
-            return function (ext, url) {
-              if (maskURLs[url]) {
-                url = maskURLs[url]
-                delete maskURLs[url]
-              }
-              return addCustomExtensionInfo.call(this, ext, url)
-            }
-          }
-        )
-        patch(vm.extensionManager, 'loadExtensionURL', loadExtensionURL => {
-          // https://m.ccw.site/user_projects_assets/b45605a0ce457806eb9a6d4a675058e6.js
-          return async function (extensionURL, shouldReplace = false) {
-            if (
-              extensionURL.startsWith('http:') ||
-              extensionURL.startsWith('https:')
-            ) {
-              let code = await fetch(extensionURL).then(res => res.text())
-              const extensionInfo = getExtensionInfo(code)
-              const monaco = await Monaco
-              return new Promise(resolve => {
-                const overlay = document.createElement('div')
-                overlay.style.position = 'fixed'
-                overlay.style.top = '0'
-                overlay.style.left = '0'
-                overlay.style.width = '100%'
-                overlay.style.height = '100%'
-                overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)' // Changed opacity to 0.5 for semi-transparency
-                overlay.style.zIndex = '1000'
-                overlay.style.display = 'flex'
-                overlay.style.flexDirection = 'column'
-                overlay.style.justifyContent = 'center'
-                overlay.style.alignItems = 'center'
-                overlay.style.color = '#fff'
-                overlay.style.fontSize = '18px'
-                overlay.style.textAlign = 'center'
-
-                const foreground = document.createElement('div')
-                foreground.style.backgroundColor = '#fff'
-                foreground.style.borderRadius = '10px'
-                foreground.style.padding = '20px'
-                foreground.style.color = '#000'
-                foreground.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.2)'
-                foreground.style.textAlign = 'left'
-
-                const warningText = document.createElement('p')
-                warningText.textContent = `作品正在尝试加载一个自定义扩展 (${extensionURL})。您可以编辑此扩展的内容。`
-                foreground.appendChild(warningText)
-
-                const editor = document.createElement('div')
-                editor.style.width = '100%'
-                editor.style.height = '300px'
-                editor.style.marginBottom = '10px'
-
-                const monacoEditor = monaco.editor.create(editor, {
-                  value: code,
-                  automaticLayout: true,
-                  language: 'javascript'
-                })
-
-                monacoEditor.onDidChangeModelContent(() => {
-                  code = monacoEditor.getValue()
-                })
-
-                foreground.appendChild(editor)
-
-                const continueButton = document.createElement('button')
-                continueButton.textContent = '加载'
-                continueButton.style.marginTop = '20px'
-                continueButton.style.padding = '10px 20px'
-                continueButton.style.fontSize = '16px'
-                continueButton.style.cursor = 'pointer'
-                continueButton.addEventListener('click', () => {
-                  monacoEditor.dispose()
-                  const url = URL.createObjectURL(
-                    new File([code], 'extension.js', {
-                      type: 'application/javascript'
-                    })
-                  )
-                  document.body.removeChild(overlay)
-                  patch(document, 'createElement', createElement => {
-                    return function (tagName) {
-                      if (tagName === 'script') {
-                        const script = createElement.call(this, tagName)
-                        const proxy = new Proxy(script, {
-                          set(target, prop, value) {
-                            if (prop === 'src') {
-                              return Reflect.set(target, 'src', url)
-                            } else return Reflect.set(target, prop, value)
-                          }
-                        })
-                        document.createElement = createElement
-                        patch(document.body, 'append', append => {
-                          return function (child) {
-                            if (child === proxy) {
-                              document.body.append = append
-                              return append.call(this, script)
-                            }
-                            return append.call(this, child)
-                          }
-                        })
-                        patch(document.body, 'removeChild', removeChild => {
-                          return function (child) {
-                            if (child === proxy) {
-                              document.body.removeChild = removeChild
-                              return removeChild.call(this, script)
-                            }
-                            return removeChild.call(this, child)
-                          }
-                        })
-                        return proxy
-                      }
-                      return createElement.call(this, tagName)
-                    }
-                  })
-                  maskURLs[url] = extensionURL
-                  resolve(loadExtensionURL.call(this, url, shouldReplace))
-                })
-
-                foreground.appendChild(continueButton)
-
-                extensionInfo.then(res => {
-                  if (res.result !== 'success') {
-                    console.error('Failed to parse extension info:', res.error)
-                  }
-                  const useButton = document.createElement('button')
-                  useButton.textContent = '使用 no-op 扩展模板'
-                  useButton.style.marginTop = '20px'
-                  useButton.style.marginLeft = '10px'
-                  useButton.style.padding = '10px 20px'
-                  useButton.style.fontSize = '16px'
-                  useButton.style.cursor =
-                    res.result === 'success' ? 'pointer' : 'not-allowed'
-                  useButton.disabled = res?.result !== 'success'
-                  useButton.title =
-                    res?.result === 'success'
-                      ? '已解析到此扩展的元信息。点击使用一个空实现替换此扩展。'
-                      : '无法解析到此扩展的元信息。现在无法使用此功能。'
-                  useButton.addEventListener('click', () => {
-                    const template = `
-(function (Scratch, info) {
-  'use strict';
-  // 代码并不直接可用，请根据扩展实际功能进行修改。
-  class Extension {
-    getInfo() {
-      return info;
-    }${(() => {
-      const getDefaultDummy = blockType => {
-        switch (blockType) {
-          case 'reporter':
-            return ' return 0; '
-          case 'Boolean':
-            return ' return false; '
-          default:
-            return ''
-        }
-      }
-      try {
-        const code = res.info.blocks.map(
-          v => `${v.opcode ?? v.func} () {${getDefaultDummy(v.blockType)}}`
-        )
-        return code.length ? '\n    ' + code.join('\n    ') : ''
-      } catch {
-        return ''
-      }
-    })()}
-  }
-  Scratch.extensions.register(new Extension());
-})(Scratch, ${JSON.stringify(res.info, null, 2)});
-`
-                    monacoEditor.setValue(template.trim())
-                  })
-                  foreground.appendChild(useButton)
-                })
-                overlay.appendChild(foreground)
-
-                document.body.appendChild(overlay)
-              })
-            }
-            return loadExtensionURL.call(this, extensionURL, shouldReplace)
-          }
-        })
         vm.runtime.compilerRegisterExtension = (name, extensionObject) => {
           switch (name) {
             case 'community': {
@@ -375,6 +239,7 @@ export class HomeScene {
               })
               extensionObject.sendPlayEventCode = () => {}
               // FIXME: SecureVM is slow
+              // const context = SecureVM()
               // patch(extensionObject, 'getValueInJSON', getValueInJSON => {
               //   return function getValueInJSON(args) {
               //     var key = Scratch.Cast.toString(args.KEY),

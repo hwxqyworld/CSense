@@ -1,0 +1,1 @@
+export const CSENSE_WINDOW_BASE_ZINDEX = 9999
