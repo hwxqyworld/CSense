@@ -119,7 +119,7 @@ export class HomeScene {
                 projectJson = JSON.parse(content)
               }
             }
-            if (projectJson.extensions.length > 0) {
+            if (projectJson.extensions && projectJson.extensions.length > 0) {
               // Detected extensions.
               /** @type {PromiseWithResolvers<import('jszip')>} */
               const resolver = withResolvers()
