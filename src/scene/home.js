@@ -173,7 +173,6 @@ export class HomeScene {
               let code = await fetch(extensionURL).then(res => res.text())
               const extensionInfo = getExtensionInfo(code)
               const monaco = await Monaco
-              // 可能是危险的用户脚本，弹出警告并允许用户修改脚本
               return new Promise(resolve => {
                 const overlay = document.createElement('div')
                 overlay.style.position = 'fixed'
@@ -364,48 +363,6 @@ export class HomeScene {
                 )
               })
               this.manager.requestUpdate()
-              break
-            }
-            case 'GandiEconomy': {
-              patch(extensionObject, 'requestFundReturn', requestFundReturn => {
-                return function (args) {
-                  const res = prompt(
-                    '作品正在请求合约无偿注资。请输入伪造的注资金额。\n当不输入任何内容时，将自动回落到官方实现。'
-                  )
-                  if (res === null || res === '') {
-                    return requestFundReturn.call(this, args)
-                  }
-                  const v = Number(res)
-                  if (Number.isNaN(v) || v < 0) {
-                    return 0
-                  }
-                  return v
-                }
-              })
-              this.featureList.set('📜 经济合约', () => {
-                this.manager.open(
-                  new EconomyScene(this.manager, extensionObject)
-                )
-              })
-              break
-            }
-            case 'CCWMMO': {
-              patchUUID(extensionObject)
-              extensionObject.dispatchNewMessageWithParams = function (
-                _,
-                util
-              ) {
-                const blackList = globalState.mmo.broadcastBlackList
-                const hatParam = util.thread.hatParam
-                const message = `${hatParam.type}(session=${JSON.stringify(hatParam.sender)},uuid=${JSON.stringify(hatParam.senderUID)},name=${JSON.stringify(hatParam.name)},content=${JSON.stringify(hatParam.content)})`
-                if (blackList.some(regex => regex.test(message))) {
-                  return false
-                }
-                return true
-              }
-              this.featureList.set('🎮 MMO 框架', () => {
-                this.manager.open(new MMOScene(this.manager, extensionObject))
-              })
               break
             }
             case 'CCWData': {
@@ -606,14 +563,6 @@ export class HomeScene {
               break
             }
           }
-          const extname = extensionObject.getInfo().id;
-          if(confirm(`作品尝试注册扩展 ${extname}，是否自动生成空扩展？`)) {
-            const info = extensionObject.getInfo();
-            for(const block of info.blocks) {
-              const opc = block.opcode;
-              extensionObject[opc] = _=>{};
-            }
-          }
           _compilerRegisterExtension.call(vm.runtime, name, extensionObject)
         }
       })
@@ -736,31 +685,9 @@ export class HomeScene {
         handleFile(file)
         e.preventDefault()
       })
-      avatar.addEventListener('click', () => {
-        const input = document.createElement('input')
-        input.type = 'file'
-        input.accept = 'application/json'
-        input.style.display = 'none'
-        input.addEventListener('change', e => {
-          const file = e.target.files[0]
-          handleFile(file)
-        })
-        input.click()
-      })
     } else if (globalState.userInfo) {
       avatar.style.transition = 'opacity 0.3s ease-in-out'
       avatar.title = '下载用户配置文件'
-      avatar.addEventListener('click', () => {
-        const blob = new Blob([JSON.stringify(globalState.userInfo, null, 2)], {
-          type: 'application/json'
-        })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.download = `${globalState.userInfo.uuid}.json`
-        a.href = url
-        a.click()
-        URL.revokeObjectURL(url)
-      })
       avatar.addEventListener('mouseover', () => {
         avatar.style.opacity = '0.5'
       })

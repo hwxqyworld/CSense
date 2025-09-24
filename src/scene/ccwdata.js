@@ -6,7 +6,7 @@ export class CCWDataScene {
   constructor(manager, extension) {
     this.manager = manager
     this.extension = extension
-    this.selected = 'project' // 'user'
+    this.selected = 'user' // 'user'
     this.disposed = false
     // DOM elements
     this.lastFocused = null
@@ -63,11 +63,7 @@ export class CCWDataScene {
     valueInput.style.flexGrow = '2'
     valueInput.style.marginRight = '10px'
     valueInput.addEventListener('change', () => {
-      if (type === 'project') {
-        this.extension._setValueToProject(name, valueInput.value)
-      } else {
-        this.extension._setValueToUser(name, valueInput.value)
-      }
+      this.extension._setValueToUser(name, valueInput.value)
     })
     valueInput.addEventListener('focus', () => {
       this.lastFocused = valueInput
@@ -88,6 +84,7 @@ export class CCWDataScene {
 
     const projectTab = document.createElement('button')
     projectTab.textContent = '作品'
+    projectTab.disabled = true
     projectTab.style.flexGrow = '1'
     projectTab.style.padding = '10px'
     projectTab.style.border = '1px solid #ddd'
@@ -96,10 +93,6 @@ export class CCWDataScene {
     projectTab.style.backgroundColor =
       this.selected === 'project' ? '#f9f9f9' : '#fff'
     projectTab.style.cursor = 'pointer'
-    projectTab.addEventListener('click', () => {
-      this.selected = 'project'
-      this.manager.requestUpdate()
-    })
 
     const userTab = document.createElement('button')
     userTab.textContent = '用户'
