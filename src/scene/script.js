@@ -60,13 +60,15 @@ export class ScriptScene {
 const vm = await engine.vm()
 const target = vm.sprite('Stage').clones[0]
 target.var('我的变量').set('你好').watch(function (before, after) {
-return '你好，' + after
+  return '你好，' + after
 }) // .freezing = true
 `
       this.editor = this.Monaco.editor.create(editor, {
         value: editorValue,
         automaticLayout: true,
-        language: 'javascript'
+        language: 'javascript',
+        tabSize: 2,
+        insertSpaces: true
       })
 
       this.editor.addAction({
